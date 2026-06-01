@@ -17,9 +17,6 @@
   - Claim: Pod-level quotas are sufficient without any per-endpoint enforcement.
   - Why risky: A noisy endpoint can monopolize warm capacity and queue slots inside an environment unless there is explicit per-endpoint fairness control.
 
-  - Claim: Upstream rate limits alone remove in-cluster fairness concerns.
-  - Why risky: If upstream enforcement is bypassed, misconfigured, or delayed, one endpoint can still consume environment warm capacity and degrade other endpoints.
-
   - Claim: HOT scale-to-zero removes idle-cost pressure for low-usage endpoints.
   - Why risky: Environment warm pools are always-on, so baseline idle cost still exists and can grow with environment count even when endpoints run with zero HOT pods.
 
@@ -49,8 +46,7 @@
 
 
 - Secrets and networking policy
-  - Secret delivery contract:
-    Keep headers as hard requirement, or move to header token + in-pod secret fetch to reduce size/leak risk.
+  - Secret and environment-variable concern set is tracked in `plans/features/secrets-and-env-vars.md`.
 
   - Egress model:
     Choose enforcement for default deny with allowlist, DNS policy, IPv6 handling, and non-RFC1918 private ranges.
@@ -99,7 +95,7 @@
   - Node crash during in-flight request and idempotency of retried request.
 
 - Secrets and rotation
-  - Secrets rotation without restart and without leaking old values.
+  - Rotation and propagation concerns are tracked in `plans/features/secrets-and-env-vars.md`.
 
 - Consistency and topology growth
   - Multi-region or disaster recovery behavior for artifact pointer consistency.
@@ -117,8 +113,7 @@
   - Define build-job sandboxing profile separately from runtime pod sandboxing.
 
 - Secrets and auditability
-  - Add mandatory audit events for secret access, deploy action, and policy changes.
-  - Document data flow where headers containing secrets can be observed, then enforce redaction.
+  - Audit and redaction concerns are tracked in `plans/features/secrets-and-env-vars.md`.
 
 - Egress hardening
   - Define controls for IPv6 private/link-local ranges and DNS rebinding in egress policy.
@@ -142,7 +137,7 @@
   - Benchmark Kata+Firecracker vs gVisor on your expected workloads (CPU, IO, memory, startup).
 
 - Secrets and ingress handling
-  - Run header-size and header-leak tests through ingress, proxy, app framework, and logs.
+  - Secret payload and leak-path experiments are tracked in `plans/features/secrets-and-env-vars.md`.
 
 - Scaling and lifecycle behavior
   - Simulate thundering herd for one scaled-to-zero endpoint with N concurrent requests.

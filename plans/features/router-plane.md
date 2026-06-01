@@ -14,16 +14,17 @@ This feature defines Router-plane request-path behavior for ingress, HOT pod sel
 
 ## To Plan
 
-- Handle ingress requests and route only to HOT pods for the exact tenant endpoint binding.
 - On unreachable claimed pod, execute claim release/recovery behavior defined by the shared lifecycle-state contract before retry.
 - On nil claim result (shared provision function returns null), define retry policy: how many warm-claim attempts to make before returning 503 Service Unavailable, and whether a replenishment signal is emitted on null result and to which component.
+- Define request-path handling for repeated terminal deploy failures (for example decrypt/injection failure): Redis-cached failure markers, cache TTL, and re-attempt gating rules to prevent retry-driven DOS amplification.
 - Specify Router autoscaling signals beyond CPU (for example claim latency, activation backlog, timeout rate).
 
 ## Concerns
 
 - CPU-only autoscaling can miss request-path saturation before latency collapses.
 - Request-path fallback provisioning can increase p95 latency and contention during burst.
-- Fairness delegated entirely to upstream controls can still allow one tenant to consume shared warm capacity if upstream controls are bypassed or misconfigured.
+- Repeated terminal deploy failures can cause synchronized retry storms unless Router enforces bounded failure caching and backoff at endpoint scope.
+- Fairness delegated entirely to upstream controls can still allow one endpoint to consume shared warm capacity if upstream controls are bypassed or misconfigured.
 - State backend degradation can break both routing lookup and lifecycle transition behavior unless explicit fail behavior is defined.
 
 ## Examples
@@ -37,10 +38,10 @@ This feature defines Router-plane request-path behavior for ingress, HOT pod sel
 [ Incoming HTTP Request ]
 		|
 		v
-1. Extract Tenant and Endpoint
+1. Extract Endpoint Path
 		|
 		v
-2. Read Redis/Dragonfly HOT state for exact endpoint binding
+2. Read Redis/Dragonfly HOT state for exact endpoint path binding
 		|---> (Found) ----> 3a. Forward request to HOT pod
 		|
 		'---> (Not Found / Scale-to-Zero)

@@ -8,6 +8,7 @@
 - [Lifecycle State Contract](features/lifecycle-state-contract.md)
 - [Kestrel Configuration](features/config.md)
 - [Administration API](features/admin-api.md)
+- [Secrets and Env Vars](features/secrets-and-env-vars.md)
 
 ## Features and Projects Used
 
@@ -35,6 +36,15 @@
   - Per-environment namespaces with strict pod-level isolation controls
 
 ## Dictionary
+
+#### Admin API
+
+The Administration API is the control-plane API through which upstream applications configure and manage their API endpoints, including trigger URLs, environment assignment, lifecycle policies, secrets, and environment variables. It is distinct from tenant API endpoints and is only accessible to authorized users and services.
+Kestrel enforces the `/admin` boundary but does not implement per-resource permission edges within the Administration API surface.
+
+#### Client
+
+The client is the party that sends API requests to tenant endpoints or the Administration API. Clients are the trusted plane outside of Kestrel and are not part of the threat model. They can be upstream applications, end users, or internal services. They are responsible to setup, maintain and control Kestrel using the Administration API.
 
 #### Warm Containers
 
@@ -125,7 +135,7 @@ The HTTP endpoint (typically POST /deploy) through which tenant API code is prov
   - Dynamic warm-pool scaling defines control-loop policy (signals, bounds, cooldowns, and failure behavior) separate from Kubernetes manifest implementation details.
 
 - Secret delivery and network controls
-  - Secrets/env are injected at request time through headers.
+  - Secret and environment-variable storage/encryption/deploy behavior is defined in `plans/features/secrets-and-env-vars.md`.
   - Kubernetes Secrets and ConfigMaps are not used for tenant runtime delivery.
   - Runtime pods use no mounted persistent volumes.
   - Runtime pod ingress is restricted to supervisor/router only.
@@ -188,6 +198,4 @@ The HTTP endpoint (typically POST /deploy) through which tenant API code is prov
   - Separating scaling policy from YAML-level deployment details keeps architecture decisions testable and portable across rollout mechanisms.
 
 - Secret delivery and network controls
-  - Header-based injection satisfies the current non-baked secret requirement and avoids image rebuilds for secret updates.
-  - Avoiding Kubernetes Secrets/ConfigMaps and mounted volumes reduces in-cluster secret and persistence surfaces.
-  - Strict ingress/egress policy with RFC1918 blocking is intended to reduce lateral movement and private network access risk.
+  - Secret and environment-variable lifecycle detail is centralized in `plans/features/secrets-and-env-vars.md` to keep one source of truth for secret-set behavior and API semantics.

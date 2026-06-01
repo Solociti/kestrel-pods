@@ -23,7 +23,7 @@ This feature defines warm-pool control-loop policy per environment namespace bas
 ## Concerns
 
 - Aggressive scale-up can cause registry/image pull bottlenecks and node pressure.
-- Weak fairness controls can let one tenant consume most warm capacity in a shared environment.
+- Weak fairness controls can let one endpoint consume most warm capacity in a shared environment.
 - Slow or stale demand signals can produce oscillation and over-provisioning.
 - Redis/Dragonfly partial failure can produce incorrect warm-deficit perception and unstable controller actions.
 

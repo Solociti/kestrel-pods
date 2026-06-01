@@ -2,14 +2,14 @@
 
 ## Description
 
-This feature defines the Administration API contract for Kestrel control-plane operations. The API allows upstream applications to manage environments, submit builds, register and bind build artifacts to endpoints, configure endpoint runtime behavior, manage endpoint secrets and environment variables, and query usage/health metrics. Authentication and authorization policies are the responsibility of the upstream application; Kestrel enforces endpoint isolation, lifecycle safety, and configuration bounds.
+This feature defines the Administration API contract for Kestrel control-plane operations. The API allows upstream applications to manage environments, submit builds, register and bind build artifacts to endpoints, configure endpoint runtime behavior, and query usage/health metrics. Authentication and authorization policies are the responsibility of the upstream application; Kestrel enforces endpoint isolation, lifecycle safety, and configuration bounds.
 
 ## Decisions
 
 - _Cross-Cutting_
   - Administration API is the sole interface for Kestrel control-plane management.
   - Upstream application is responsible for authentication, authorization, and access control (who can create/delete environments, endpoints, and build submissions).
-  - API surface is extensible and expected to grow; new API types must declare ownership boundaries, safety gates, and compatibility behavior.
+  - Kestrel enforces `/admin` boundary access but does not implement per-resource permission edges within the Administration API.
 
 - _Environment API_
   - Administration API manages environment creation, updates, listing, and deletion.
@@ -26,7 +26,8 @@ This feature defines the Administration API contract for Kestrel control-plane o
 
 - _Endpoint API_
   - Endpoint identity is unique and immutable within Kestrel.
-  - Endpoint trigger URL must be unique within the configured enforcement boundary.
+  - Endpoint trigger URL is globally unique across all endpoints, including paths that encode tenant IDs.
+  - Endpoint trigger URL registration rejects any path that starts with `/admin` or `/admin/` because that prefix is reserved for the Administration API.
   - Endpoint configuration includes trigger URL, timeout limits, minimum HOT count, stale trigger overrides, and assigned environment.
   - Per-endpoint configuration is distinct from environment-level defaults.
   - Per-endpoint configuration overrides operate within bounds enforced by Kestrel, not defined by the endpoint owner.
@@ -35,9 +36,11 @@ This feature defines the Administration API contract for Kestrel control-plane o
   - Configuration changes are applied at runtime without requiring pod restarts or workflow interruption.
   - Configuration changes are applied to future pod transitions without affecting in-flight requests on existing HOT pods.
   - Deleted endpoints must drain existing HOT pods before deletion completes; in-flight requests complete.
+  - Path lookups for routing will treat URL paths as case-sensitive and will normalize trailing slashes (for example `/foo` and `/foo/` are equivalent) to enforce uniqueness and prevent routing confusion.
 
 - _Secret and Env-Var API_
-  - Endpoint secret and environment-variable management is part of endpoint administration behavior.
+  - Endpoint secret and environment-variable decisions are defined in `plans/features/secrets-and-env-vars.md`.
+  - Secret and env-var management is a dedicated Administration API surface and process, separate from `/build` operations.
 
 - _Metrics API_
   - Metrics APIs are read-only and expose per-endpoint and per-environment operational usage needed by upstream systems.
@@ -46,7 +49,6 @@ This feature defines the Administration API contract for Kestrel control-plane o
 
 - _Cross-Cutting_
   - Define contract versioning and compatibility for rolling API updates.
-  - Define rate limiting and quota enforcement by API type (environment, build, artifact, endpoint, metrics).
   - Define audit/event model across all API types.
 
 - _Environment API_
@@ -70,16 +72,11 @@ This feature defines the Administration API contract for Kestrel control-plane o
   - Define endpoint deletion API: cascade behavior, grace period for in-flight requests, and orphan pod cleanup guarantees.
   - Define endpoint list/query API: filter options and pagination.
   - Define endpoint configuration query API: effective configuration and optional history.
-  - Define URL uniqueness enforcement boundary (global vs per-environment vs per-upstream principal) and conflict behavior.
   - Define which parameters are per-endpoint vs per-environment.
   - Define minimum HOT instance configuration per-endpoint, including enforcement boundaries and per-environment pool interaction semantics.
   - Define per-endpoint stale trigger overrides (request count, max age, idle timeout) and their enforcement boundaries.
   - Define timeout policy (request timeout, deploy timeout, drain timeout), hard limits, and out-of-bounds rejection behavior.
   - Define how endpoint configuration is stored, updated, and applied at runtime without requiring pod restarts.
-
-- _Secret and Env-Var API_
-  - Define update semantics, size limits, key naming rules, and redaction behavior.
-  - Define runtime propagation timing and versioning behavior across existing and future pod transitions.
 
 - _Metrics API_
   - Define metrics query API: per-endpoint and per-environment request counts, error rates, CPU/memory usage, timeout counts.
@@ -88,32 +85,19 @@ This feature defines the Administration API contract for Kestrel control-plane o
 
 ## Concerns
 
-- _Cross-Cutting_
-  - No authentication is enforced by Kestrel; upstream application must prevent unauthorized control-plane operations. If upstream auth is compromised, all managed resources are at risk.
-  - Missing per-API admission controls can let one noisy caller starve control-plane capacity.
-
 - _Environment API_
   - Environment deletion can cause broad outage if active endpoints are not blocked or migrated before deletion proceeds.
   - Misconfigured per-environment stale or warm-pool values can destabilize warm capacity and stale transitions unless bounds and validation are enforced.
-
-- _Build API_
-  - Build queue abuse or oversized build inputs can starve control-plane resources unless admission and quota policy is explicit.
 
 - _Artifact API_
   - Artifact registration races can bind stale or unintended build output unless artifact version references are immutable and verified.
 
 - _Endpoint API_
-  - Ambiguous URL uniqueness scope can cause conflicting endpoint routes and non-deterministic request dispatch.
   - One endpoint configured with high minimum HOT instances can compete for shared environment warm capacity against other endpoints in the same environment.
-  - Misconfigured endpoint overrides applied at runtime need validation before taking effect to avoid unexpected lifecycle behavior.
   - Multiple endpoints in the same environment need fair access to warm capacity; per-endpoint minimums must respect per-environment pool bounds.
-  - Endpoint deletion during high traffic can cause request loss if HOT pods are terminated before drains complete; grace period and drain semantics must be explicit.
   - Orphaned HOT pods from deleted endpoints consume capacity until explicitly cleaned; cleanup must be automatic and deterministic.
   - API concurrency: simultaneous configuration updates to the same endpoint can race if transactions are not atomic; must be serialized or versioned.
   - Endpoint ID naming collisions or reuse: if deleted endpoint ID can be recreated, routing cache or stale state might serve old HOT pods to new endpoint; deletion must be durable and reuse-safe.
-
-- _Secret and Env-Var API_
-  - Secret/env-var update propagation can drift across pods if versioning and rollout sequencing are undefined.
 
 - _Metrics API_
   - Metrics query API design impacts billing accuracy and audit trail; must be queryable by timerange, include error/success breakdowns, and be tamper-resistant.
@@ -133,13 +117,12 @@ This feature defines the Administration API contract for Kestrel control-plane o
 
 - _Endpoint API_
   - Endpoint creation: upstream application sends POST with endpoint ID, environment, artifact version, trigger URL, minimum HOT count, timeout limits, and stale timeout; API returns endpoint metadata and configuration applied timestamp.
+  - URL uniqueness behavior: `/tenant-a/reports` is rejected if an endpoint with the same normalized trigger URL already exists, regardless of tenant semantics outside Kestrel.
+  - Reserved-prefix behavior: `/admin/reports` is rejected because `/admin/` paths are reserved for Administration API routes.
   - Endpoint configuration update: upstream application sends PATCH with new stale timeout and request timeout; configuration is applied to future pod transitions immediately; existing HOT pods complete their lifecycle under old rules.
   - Minimum HOT behavior: an endpoint is configured with a minimum HOT instance count of 5; Controller enforces the target while respecting per-environment warm pool caps.
   - Stale override behavior: an endpoint is configured with a custom idle timeout; Controller applies the endpoint-specific trigger for pods bound to that endpoint.
   - Endpoint deletion: upstream application sends DELETE; Kestrel marks endpoint as draining, stops accepting new requests for that endpoint, waits for in-flight requests to complete, then terminates remaining HOT pods.
-
-- _Secret and Env-Var API_
-  - Secret update: upstream application sends PATCH with secret rotation payload; Kestrel applies new secret version to future deploy transitions without exposing cleartext in API responses.
 
 - _Metrics API_
   - Metrics query: upstream application queries GET /metrics?endpoint=x&from=t1&to=t2; response returns request count, error count, CPU-seconds, memory-seconds, and timeout counts for reporting or billing.

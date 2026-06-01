@@ -48,11 +48,11 @@ Containers that are currently being provisioned and not ready for requests yet.
 
 #### Hot Pods
 
-Containers that have code provisioned and are ready to receive requests. Once a container has the HOT state, it is permanently bound to one tenant and one API endpoint, may serve multiple requests for that same binding, and is never reassigned to another endpoint. When stale triggers are hit, it is removed from routing, drains in-flight requests, and is then killed.
+Containers that have code provisioned and are ready to receive requests. Once a container has the HOT state, it is permanently bound to one API endpoint path, may serve multiple requests for that same endpoint path, and is never reassigned to another endpoint. When stale triggers are hit, it is removed from routing, drains in-flight requests, and is then killed.
 
 #### Stale Pods
 
-Pods that were previously HOT for a specific tenant and API endpoint but have hit a recycle trigger (for example request-count limit, max age, idle timeout, or explicit unhealthy marking). A stale pod is immediately removed from HOT routing eligibility, does not accept new requests, is allowed to finish in-flight requests within drain policy, and is then terminated.
+Pods that were previously HOT for a specific API endpoint path but have hit a recycle trigger (for example request-count limit, max age, idle timeout, or explicit unhealthy marking). A stale pod is immediately removed from HOT routing eligibility, does not accept new requests, is allowed to finish in-flight requests within drain policy, and is then terminated.
 
 #### Error Pods
 
@@ -78,7 +78,7 @@ The same as stale pods except the state was updated because of an error instead 
 
 ## To Plan
 
-- Specify endpoint HOT-list keyspace schema and selection policy. No key naming schema has been decided (candidates include `hot:{tenant}:{endpoint}` or similar). Open questions: data structure (list vs set), key naming and scoping, insertion deduplication on HOT commit, selection strategy for multiple eligible HOT pods (round-robin, LRU, or FIFO), and behavior when the HOT list is empty mid-request. This policy is shared between Router (selection at request time) and Controller (minimum HOT maintenance). See `plans/features/router-plane.md` and `plans/features/controller-plane.md`.
+- Specify endpoint HOT-list keyspace schema and selection policy. No key naming schema has been decided (candidates include `hot:{endpoint_path}` or similar). Open questions: data structure (list vs set), key naming and scoping, insertion deduplication on HOT commit, selection strategy for multiple eligible HOT pods (round-robin, LRU, or FIFO), and behavior when the HOT list is empty mid-request. This policy is shared between Router (selection at request time) and Controller (minimum HOT maintenance). See `plans/features/router-plane.md` and `plans/features/controller-plane.md`.
 - Specify legal transition graph and enforce which plane is allowed to execute each transition.
 - Set stale transition ordering guarantees for route removal, drain behavior, and termination readiness. Controller executes termination; the sequencing contract belongs here.
 - Set contract-versioning and compatibility rules for Router and Controller rollouts.
