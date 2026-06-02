@@ -36,6 +36,39 @@ This feature defines the shared Redis/Dragonfly lifecycle-state contract used by
 }
 ```
 
+## Metrics Collection Contract
+
+- Lifecycle metrics collection is part of this shared lifecycle-state contract.
+- Metrics reporting API ownership remains in `plans/features/admin-api.md`.
+
+### Pre-1.0 Collection Model
+
+- Lifecycle events are the primary usage source.
+- Router and Controller are the event writers for lifecycle-owned transitions.
+- Event storage is row-based SQL with one row per event; immutability controls are not required pre-1.0.
+- Required event types for usage reporting:
+  - endpoint execution start
+  - endpoint execution end
+  - pod HOT start
+  - pod stale
+- HOT pods must include endpoint identity labels so pod lifecycle events can be attributed to endpoint usage.
+- A pod marked stale is removed from new-traffic routing eligibility immediately and only drains in-flight traffic.
+
+### Query Window and Attribution Rules
+
+- Query windows use `from` inclusive and `to` exclusive boundaries (`[from, to)`).
+- Usage collection for a period filters by end timestamp to keep period assignment consistent.
+- Endpoint execution seconds for a period are computed from execution records whose end timestamp is within the query window.
+- Transactions that start in one month and end in the next are collected in the month containing the end timestamp.
+- HOT pod online seconds are computed from HOT-start to stale/end transition events using the same end-timestamp window rule.
+
+### Transient Lag and Backup Sampling
+
+- Transient lag between lifecycle transitions and persisted events is accepted behavior.
+- Reporting queries must use consistent lookup boundaries for all records in a given query window.
+- VictoriaMetrics sampling is a secondary audit/dispute and scaling signal, not an automated billing authority.
+- VictoriaMetrics backup sampling cadence is configuration-driven in `plans/features/config.md`.
+
 ## Dictionary
 
 #### Warm Pods
@@ -75,6 +108,7 @@ The same as stale pods except the state was updated because of an error instead 
 - Shared provision workflow contract is settled at the architecture level: required inputs, caller policy overrides, and terminal outputs are part of the contract surface.
 - Provision workflow and deploy workflow refer to the same lifecycle operation (`POST /deploy` with contract-defined state transitions).
 - Claim transition timeout is configuration-driven with an interim default of 60 seconds, defined in `plans/features/config.md`.
+- Usage collection semantics, period attribution rules, and lifecycle event writing boundaries are defined by this file.
 
 ## To Plan
 
@@ -83,15 +117,22 @@ The same as stale pods except the state was updated because of an error instead 
 - Set stale transition ordering guarantees for route removal, drain behavior, and termination readiness. Controller executes termination; the sequencing contract belongs here.
 - Set contract-versioning and compatibility rules for Router and Controller rollouts.
 - Specify deploy payload validation rules: required top-level fields (`secrets`, `vars`), the `payload` wrapper key, and the mutually exclusive inner fields (`code` for inline or `download-url` for remote). Define behavior when required fields are absent or both code-source fields are present.
+- Define SQL schema details for lifecycle metrics rows, including event IDs and index strategy for end-timestamp queries.
+- Define dedupe behavior for repeated write attempts of the same lifecycle event.
+- Define aggregation query contract for endpoint execution seconds, HOT pod online seconds, and lifecycle event counts.
 
 ## Concerns
 
 - Repair loops can over-correct and terminate valid pods when reconciliation operates on stale backend reads.
 - Contract-version skew during rolling deploys can break transition legality unless compatibility boundaries are explicit.
 - Endpoint HOT-list keyspace schema is not yet decided; divergent key naming or data structure across Router and Controller will break routing correctness until this is locked.
+- Endpoint execution-time billing can under-report resource use if user code returns early and continues heavy background work after response completion.
+- Row-based SQL event storage without immutability controls can reduce dispute confidence if rows are modified or removed.
+- VictoriaMetrics backup sampling is intentionally coarse and non-authoritative; short-lived spikes can be missed and only bounded during dispute review.
 
 ## Examples
 
 - Atomic claim example: Router executes `LMOVE warm:available warm:claiming LEFT RIGHT`, then commits HOT transition only if claim ownership is still valid.
 - Recovery example: Controller detects a stale claiming entry past grace policy and executes contract-defined release/repair before any termination action.
 - Shared provision workflow example: caller invokes one contract-defined workflow and receives one of: provisioned HOT pod reference, nil-capacity result, or error result.
+- Month-boundary attribution example: an execution starts at `2026-06-30T23:59:50Z` and ends at `2026-07-01T00:00:10Z`; because filtering is by end timestamp, the record is counted in July.

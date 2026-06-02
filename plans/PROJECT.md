@@ -120,8 +120,7 @@ The HTTP endpoint (typically POST /deploy) through which tenant API code is prov
   - Stale lifecycle configuration uses baseline environment defaults in `plans/features/config.md`; per-environment values are configured through `plans/features/admin-api.md`.
   - MVP cleanup policy uses drain grace, orphan grace, and scan cadence only; no transient-lag safety gate is enabled until a later architecture update.
   - Pod lifecycle/routing state is tracked in Redis or Dragonfly and mirrored with Kubernetes labels for cluster visibility.
-  - If a stale/race condition briefly results in extra endpoint-bound pods, this is acceptable and billed by CPU usage.
-  - In-flight requests that started before stale marking remain part of the old pod lifecycle for billing/accounting.
+  - A pod marked stale is removed from new-traffic routing eligibility immediately and only drains in-flight traffic.
   - See `plans/features/dynamic-warm-pool-scaling.md` for warm pool sizing and scaling policy.
   - See `plans/features/router-plane.md` for routing selection and fallback provisioning behavior.
   - See `plans/features/controller-plane.md` for minimum HOT maintenance.
@@ -191,8 +190,6 @@ The HTTP endpoint (typically POST /deploy) through which tenant API code is prov
 - Endpoint configuration and capacity model
   - Each endpoint is independently configurable for minimum HOT instances and stale triggers, allowing upstream applications to implement their own tiering logic.
   - Always-on environment warm pools reduce first-request latency for scale-to-zero endpoints.
-  - Upstream applications query per-endpoint usage metrics for billing and reporting.
-  - CPU-time billing aligned to pod lifecycle captures work done even when a pod is already marked stale.
 
 - Dynamic warm-pool scaling policy boundary
   - Separating scaling policy from YAML-level deployment details keeps architecture decisions testable and portable across rollout mechanisms.

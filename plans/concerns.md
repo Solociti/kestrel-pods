@@ -72,9 +72,6 @@
   - Per-endpoint minimum HOT policy:
     Define how per-endpoint minimum HOT instances are capped per environment so high-priority endpoints cannot starve shared warm pool capacity from other endpoints.
 
-  - Billing model:
-    Upstream applications query per-endpoint usage metrics for billing and reporting. Metering source of truth, sampling/aggregation model, and tamper-resistant logging pipeline are unresolved.
-
 ## 3) Edge Cases to Design Now
 
 - Deploy and startup flow

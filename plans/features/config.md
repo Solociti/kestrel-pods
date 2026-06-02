@@ -11,11 +11,15 @@ kestrel:
   state-backend:
     endpoint: "redis://dragonfly.default.svc.cluster.local:6379" # required; Kestrel only consumes endpoint config
 
+metrics:
+  # Backup sampling cadence for VictoriaMetrics used in audit/dispute workflows
+  scrape-interval-seconds: 30
+
 environment:
   stale:
     request-count: 1000 # HOT pod stale trigger by served request count
     max-age-seconds: 1800 # HOT pod stale trigger by pod age (30 minutes)
-    idle-timeout-enabled: true # enable idle-based stale trigger
+    hot-idle-timeout-seconds: 120 # idle-based stale trigger for HOT pods (2 minutes)
   warm-pool:
     min-pods: 4 # lower bound of warm pods per environment namespace
     max-pods: 10 # upper bound of warm pods per environment namespace
@@ -53,6 +57,7 @@ cleanup:
 - This file is the source of truth for concrete configuration values and defaults. Other planning docs reference this file instead of repeating values.
 - Provision workflow and deploy workflow are the same contract surface and share one configuration group per caller type.
 - Environment values in this file are baseline defaults; per-environment values are configured and updated through the Administration API.
+- Metrics backup collection cadence is configured in this file and can be tuned without changing the event-first metering contract.
 - All numeric defaults are interim and expected to change after development benchmarking.
 
 ## To Plan
@@ -70,3 +75,4 @@ cleanup:
 - Environment policy: stale and warm-pool baseline defaults are read from environment config; per-environment values are configured through the Administration API.
 - Router policy: request timeout and router provision retry/backoff are read from router config.
 - Controller policy: claim timeout, controller provision retry/backoff, and cleanup policy are read from controller config.
+- Metrics policy: VictoriaMetrics backup scrape interval is read from metrics config.

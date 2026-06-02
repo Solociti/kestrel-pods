@@ -43,7 +43,9 @@ This feature defines the Administration API contract for Kestrel control-plane o
   - Secret and env-var management is a dedicated Administration API surface and process, separate from `/build` operations.
 
 - _Metrics API_
-  - Metrics APIs are read-only and expose per-endpoint and per-environment operational usage needed by upstream systems.
+  - Metrics APIs are read-only and own reporting/query surfaces for per-endpoint and per-environment usage.
+  - Metrics API reports endpoint execution seconds, HOT pod online seconds, and lifecycle event counts per query period.
+  - Lifecycle metrics collection and attribution semantics are defined in `plans/features/lifecycle-state-contract.md`.
 
 ## To Plan
 
@@ -79,9 +81,9 @@ This feature defines the Administration API contract for Kestrel control-plane o
   - Define how endpoint configuration is stored, updated, and applied at runtime without requiring pod restarts.
 
 - _Metrics API_
-  - Define metrics query API: per-endpoint and per-environment request counts, error rates, CPU/memory usage, timeout counts.
+  - Define metrics query API for lifecycle-derived usage: endpoint execution seconds, HOT pod online seconds, and lifecycle event counts by endpoint and environment.
   - Define timerange constraints, aggregation windows, and cardinality limits.
-  - Define consistency guarantees for billing-sensitive metrics.
+  - Define response metadata fields for query window boundaries and applied filters.
 
 ## Concerns
 
@@ -100,7 +102,6 @@ This feature defines the Administration API contract for Kestrel control-plane o
   - Endpoint ID naming collisions or reuse: if deleted endpoint ID can be recreated, routing cache or stale state might serve old HOT pods to new endpoint; deletion must be durable and reuse-safe.
 
 - _Metrics API_
-  - Metrics query API design impacts billing accuracy and audit trail; must be queryable by timerange, include error/success breakdowns, and be tamper-resistant.
   - Metrics cardinality can explode if dimensions are unconstrained, causing storage and query degradation.
 
 ## Examples
@@ -125,4 +126,4 @@ This feature defines the Administration API contract for Kestrel control-plane o
   - Endpoint deletion: upstream application sends DELETE; Kestrel marks endpoint as draining, stops accepting new requests for that endpoint, waits for in-flight requests to complete, then terminates remaining HOT pods.
 
 - _Metrics API_
-  - Metrics query: upstream application queries GET /metrics?endpoint=x&from=t1&to=t2; response returns request count, error count, CPU-seconds, memory-seconds, and timeout counts for reporting or billing.
+  - Metrics query: upstream application queries GET /metrics?endpoint=x&from=t1&to=t2; response returns endpoint-execution-seconds, hot-online-seconds, and lifecycle event counts for reporting inputs.
