@@ -118,7 +118,6 @@ The same as stale pods except the state was updated because of an error instead 
 - Set contract-versioning and compatibility rules for Router and Controller rollouts.
 - Specify deploy payload validation rules: required top-level fields (`secrets`, `vars`), the `payload` wrapper key, and the mutually exclusive inner fields (`code` for inline or `download-url` for remote). Define behavior when required fields are absent or both code-source fields are present.
 - Define SQL schema details for lifecycle metrics rows, including event IDs and index strategy for end-timestamp queries.
-- Define dedupe behavior for repeated write attempts of the same lifecycle event.
 - Define aggregation query contract for endpoint execution seconds, HOT pod online seconds, and lifecycle event counts.
 
 ## Concerns
