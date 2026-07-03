@@ -4,10 +4,7 @@ This repository is architecture-first. AI agents should optimize for design corr
 
 ## Canonical Sources
 
-- Project decisions and rationale: [plans/PROJECT.md](plans/PROJECT.md)
-- Open risks and unresolved design questions: [plans/concerns.md](plans/concerns.md)
-- Implementation backlog items: [plans/BACKLOG.md](plans/BACKLOG.md)
-- Feature and architecture plan files: [plans/features/](plans/features/)
+- VM-based architecture plan and source of truth: [plans/plan.md](plans/plan.md)
 
 Do not duplicate decisions across files. Update the source of truth directly.
 
@@ -16,17 +13,14 @@ Do not duplicate decisions across files. Update the source of truth directly.
 Use the Project Critic custom agent when discussing architecture changes:
 
 - Agent definition: [.github/agents/project-critic.agent.md](.github/agents/project-critic.agent.md)
-- Purpose: bluntly challenge design claims, then update plans/PROJECT.md and plans/concerns.md only when the user explicitly confirms a concern is resolved.
+- Purpose: bluntly challenge design claims, then update the Decisions and Concerns sections in plans/plan.md only when the user explicitly confirms a concern is resolved.
 
 ## Editing Rules For This Repo
 
-- Treat plans/PROJECT.md as normative architecture policy.
-- Treat plans/concerns.md as a live risk register, not a task list.
-- Keep plans/BACKLOG.md for implementation work, not unresolved architecture policy.
-- Keep feature-level and architecture-slice planning in plans/features/*.md.
-- Require each feature plan file to use required sections: Description, Decisions, To Plan, Concerns, Examples.
-- Allow custom sections in feature plan files when they add feature-specific context.
-- Do not create a file in plans/features/ unless it is referenced in plans/PROJECT.md.
+- Treat plans/plan.md as normative VM architecture policy.
+- Keep accepted architecture decisions and rationale in the Decisions section of plans/plan.md.
+- Keep unresolved risks, risky claims, and open questions in the Concerns section of plans/plan.md.
+- Keep implementation follow-up items in the To Plan section of plans/plan.md.
 - Prefer small, explicit edits that preserve existing terminology (warm, hot, stale, environments, deploy).
 - Do not invent build/test commands. None are defined in this repository yet.
 
@@ -34,10 +28,10 @@ Use the Project Critic custom agent when discussing architecture changes:
 
 When adding or changing architecture decisions:
 
-1. State the decision and enforcement boundary in plans/PROJECT.md.
-2. Add explicit failure modes or uncertainty to plans/concerns.md.
-3. If a concern is resolved, remove or rewrite only that concern and reflect the updated decision in plans/PROJECT.md.
-4. If the decision is feature- or architecture-slice specific, link the relevant plans/features/*.md file from plans/PROJECT.md.
+1. State the decision and enforcement boundary in the Decisions section of plans/plan.md.
+2. Add explicit failure modes or uncertainty to the Concerns section of plans/plan.md.
+3. If a concern is resolved, remove or rewrite only that concern and reflect the updated decision in plans/plan.md in the same edit.
+4. If the decision creates follow-up implementation work, capture that work in the To Plan section of plans/plan.md.
 
 ## Scope Note
 
