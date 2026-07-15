@@ -4,10 +4,7 @@ This repository is architecture-first. AI agents should optimize for design corr
 
 ## Canonical Sources
 
-- Project decisions and rationale: [plans/PROJECT.md](plans/PROJECT.md)
-- Open risks and unresolved design questions: [plans/concerns.md](plans/concerns.md)
-- Implementation backlog items: [plans/BACKLOG.md](plans/BACKLOG.md)
-- Feature and architecture plan files: [plans/features/](plans/features/)
+- VM-based architecture plan and source of truth: [plans/plan.md](plans/plan.md)
 
 Do not duplicate decisions across files. Update the source of truth directly.
 
@@ -16,28 +13,35 @@ Do not duplicate decisions across files. Update the source of truth directly.
 Use the Project Critic custom agent when discussing architecture changes:
 
 - Agent definition: [.github/agents/project-critic.agent.md](.github/agents/project-critic.agent.md)
-- Purpose: bluntly challenge design claims, then update plans/PROJECT.md and plans/concerns.md only when the user explicitly confirms a concern is resolved.
+- Purpose: bluntly challenge design claims, then update the relevant section’s **Decision:** block and the Concerns section in plans/plan.md only when the user explicitly confirms a concern is resolved.
 
 ## Editing Rules For This Repo
 
-- Treat plans/PROJECT.md as normative architecture policy.
-- Treat plans/concerns.md as a live risk register, not a task list.
-- Keep plans/BACKLOG.md for implementation work, not unresolved architecture policy.
-- Keep feature-level and architecture-slice planning in plans/features/*.md.
-- Require each feature plan file to use required sections: Description, Decisions, To Plan, Concerns, Examples.
-- Allow custom sections in feature plan files when they add feature-specific context.
-- Do not create a file in plans/features/ unless it is referenced in plans/PROJECT.md.
-- Prefer small, explicit edits that preserve existing terminology (warm, hot, stale, environments, deploy).
+- Treat plans/plan.md as normative VM architecture policy.
+- Structure: Base Architecture section (core tenant isolation, `Control Plane` pod, `Router` pod, `Orchestrator` pod, lifecycle state model) + feature-specific sections (Endpoint Runtime, Routing, Secrets, etc.) + To Plan subsections within features.
+- Keep accepted architecture decisions and rationale within each section (Base and feature sections).
+- Keep implementation follow-up items in the To Plan subsections within each feature section.
+- Keep unresolved risks, risky claims, and open questions in the Concerns section at the end, grouped by severity level (Critical, High, Medium, Low).
+- Each concern must include severity level, impact description, and enforcement guidance.
+- Use canonical runtime terminology: `Control Plane` pod, `Router` pod, `Orchestrator` pod, `Scheduler Routine`, `Admin API`, `Workload Pods`.
+- Keep pod names wrapped in backticks.
+- Preserve existing lifecycle terminology (warm, hot, stale, environments, deploy).
+- Prefer small, explicit edits that preserve existing terminology and policy intent.
 - Do not invent build/test commands. None are defined in this repository yet.
 
 ## Suggested Decision Hygiene
 
 When adding or changing architecture decisions:
 
-1. State the decision and enforcement boundary in plans/PROJECT.md.
-2. Add explicit failure modes or uncertainty to plans/concerns.md.
-3. If a concern is resolved, remove or rewrite only that concern and reflect the updated decision in plans/PROJECT.md.
-4. If the decision is feature- or architecture-slice specific, link the relevant plans/features/*.md file from plans/PROJECT.md.
+1. State the decision within the appropriate Base Architecture or feature section of plans/plan.md.
+2. Add enforcement boundaries and responsibility delineations where applicable.
+3. If the decision defers work, add a To Plan subsection within that feature section.
+4. Add explicit failure modes or uncertainty to the Concerns section in plans/plan.md.
+5. Classify each concern with a severity level: Critical, High, Medium, or Low.
+6. Include impact description for each concern (blast radius, user-visible effect, recovery complexity).
+7. If a concern is resolved, remove or rewrite only that concern and reflect the updated decision within the feature section in the same edit.
+8. When resolving a concern, update both the feature section decision and the concern entry at the end of the file.
+9. Keep ownership boundaries explicit: `Orchestrator` pod owns VM and tenant-cluster provisioning; `Control Plane` pod does not.
 
 ## Scope Note
 
