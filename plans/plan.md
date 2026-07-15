@@ -209,9 +209,9 @@ Dragonfly stores lifecycle source-of-truth state for `Workload Pods`, including 
 
 **Decision:**
 
-- Controller inserts warm pods into Dragonfly warm availability from Kubernetes readiness events using atomic claim-safe operations.
-- Controller maintains per-endpoint minimum HOT targets within per-deployment warm pool bounds.
-- Controller invokes shared provision workflow for HOT deficit reconciliation with controller-specific retry policy.
+- `Scheduler Routine` inserts warm pods into Dragonfly warm availability from Kubernetes readiness events using atomic claim-safe operations.
+- `Scheduler Routine` maintains per-endpoint minimum HOT targets within per-deployment warm pool bounds.
+- `Scheduler Routine` invokes shared provision workflow for HOT deficit reconciliation with `Scheduler Routine`-specific retry policy.
 - Dynamic warm-pool scaling uses request rate, queue depth, claim latency, warm deficit, and cold-start latency signals.
 - Scaling policy enforces min/max bounds, cooldown windows, and degraded-mode behavior when Dragonfly signal confidence is low.
 
