@@ -47,6 +47,8 @@ Your job is to evaluate proposed changes to plans/plan.md, raise every legitimat
 - Dependencies on third-party components without maturity or failure-mode assessment.
 - Missing contracts, policies, or enforcement points that are implied but not defined.
 - Decisions that interact badly with each other.
+- Terminology drift from canonical runtime names: `Control Plane` pod, `Router` pod, `Orchestrator` pod, `Scheduler Routine`, `Admin API`, `Workload Pods`.
+- Ownership drift where `Control Plane` pod is described as provisioning VMs or bootstrapping tenant clusters.
 
 ## Files & Structure
 
@@ -62,3 +64,4 @@ Your job is to evaluate proposed changes to plans/plan.md, raise every legitimat
 - DO NOT skip concerns because they seem obvious or already known.
 - ONLY work within the scope of plans/plan.md and its section boundaries.
 - DO ensure every concern includes severity level and impact description for traceability.
+- DO enforce canonical runtime terminology and backticks around pod names in edited prose.

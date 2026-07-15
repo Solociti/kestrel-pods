@@ -1,6 +1,6 @@
 ---
 name: resolve-architecture-concern
-description: "Resolve one architecture concern by updating plans/PROJECT.md and plans/concerns.md with synchronized, evidence-based edits. Use when closing risky claims, open decisions, or edge-case entries in plans/concerns.md."
+description: "Resolve one architecture concern by updating plans/plan.md with synchronized, evidence-based edits across Decisions, To Plan, and Concerns sections."
 argument-hint: "Which concern should be resolved?"
 user-invocable: true
 disable-model-invocation: false
@@ -8,21 +8,21 @@ disable-model-invocation: false
 
 # Resolve Architecture Concern
 
-Use this skill to close one concern from [plans/concerns.md](../../../plans/concerns.md) without creating policy drift between architecture documents.
+Use this skill to close one concern in [plans/plan.md](../../../plans/plan.md) without creating policy drift between Decisions, To Plan, and Concerns sections.
 
 ## Outcome
 
 Produce synchronized edits that:
 
-- update [plans/PROJECT.md](../../../plans/PROJECT.md) with the accepted decision and enforcement boundary,
-- remove or rewrite the resolved concern in [plans/concerns.md](../../../plans/concerns.md),
+- update the relevant Decisions section in [plans/plan.md](../../../plans/plan.md) with the accepted decision and enforcement boundary,
+- remove or rewrite the resolved concern in the Concerns section of [plans/plan.md](../../../plans/plan.md),
 - add new follow-on risks if the resolution introduces new uncertainty,
-- move implementation-only actions to [plans/BACKLOG.md](../../../plans/BACKLOG.md) only when concrete execution work is required.
+- move implementation-only actions to a To Plan subsection in [plans/plan.md](../../../plans/plan.md) only when concrete execution work is required.
 
 ## When To Use
 
-- A concern in [plans/concerns.md](../../../plans/concerns.md) is ready for resolution.
-- A risky claim in [plans/PROJECT.md](../../../plans/PROJECT.md) needs narrowing, scoping, or evidence.
+- A concern in the Concerns section of [plans/plan.md](../../../plans/plan.md) is ready for resolution.
+- A risky claim in a Decisions section of [plans/plan.md](../../../plans/plan.md) needs narrowing, scoping, or evidence.
 - A user asks to close an open architecture decision and reflect it across docs.
 
 ## Procedure
@@ -35,7 +35,7 @@ Produce synchronized edits that:
 2. Classify concern type.
 
 - Risky claim: convert absolutes into scoped, testable statements.
-- Open decision: add explicit decision plus rationale in [plans/PROJECT.md](../../../plans/PROJECT.md).
+- Open decision: add explicit decision plus rationale in the relevant feature section of [plans/plan.md](../../../plans/plan.md).
 - Edge case: define expected behavior and enforcement point.
 - Security gap: define control boundary, ownership, and audit surface.
 
@@ -47,17 +47,18 @@ Produce synchronized edits that:
 
 4. Apply synchronized edits.
 
-- Update [plans/PROJECT.md](../../../plans/PROJECT.md) first with decision and rationale.
-- Remove or rewrite the matching item in [plans/concerns.md](../../../plans/concerns.md).
-- If new risks emerge, add them immediately to [plans/concerns.md](../../../plans/concerns.md).
-- Add [plans/BACKLOG.md](../../../plans/BACKLOG.md) entries only for concrete implementation tasks.
+- Update the relevant Decisions section in [plans/plan.md](../../../plans/plan.md) first with decision and rationale.
+- Remove or rewrite the matching item in the Concerns section in [plans/plan.md](../../../plans/plan.md).
+- If new risks emerge, add them immediately to the Concerns section in [plans/plan.md](../../../plans/plan.md).
+- Add To Plan entries in [plans/plan.md](../../../plans/plan.md) only for concrete implementation tasks.
 
 5. Run consistency checks.
 
 - No duplicated policy statements across files.
-- No unresolved concern marked as resolved without a PROJECT update.
+- No unresolved concern marked as resolved without a corresponding Decisions-section update.
 - No implementation checklist mixed into unresolved architecture concerns.
 - Existing domain terms remain stable: warm, hot, stale, environments, deploy.
+- Runtime terms remain canonical: `Control Plane` pod, `Router` pod, `Orchestrator` pod, `Scheduler Routine`, `Admin API`, `Workload Pods`.
 
 6. Report completion.
 
@@ -69,14 +70,14 @@ Produce synchronized edits that:
 
 - If evidence is missing, do not mark the concern resolved; rewrite it as narrowed uncertainty.
 - If the resolution depends on benchmark results or fault-injection tests, keep the concern open and add explicit validation criteria.
-- If the update affects security posture, add or update the security gap entry in [plans/concerns.md](../../../plans/concerns.md) in the same pass.
-- If the change creates execution work only, add a targeted item to [plans/BACKLOG.md](../../../plans/BACKLOG.md) and keep unresolved policy in [plans/concerns.md](../../../plans/concerns.md).
+- If the update affects security posture, add or update the security gap entry in the Concerns section in [plans/plan.md](../../../plans/plan.md) in the same pass.
+- If the change creates execution work only, add a targeted To Plan item in [plans/plan.md](../../../plans/plan.md) and keep unresolved policy in the Concerns section.
 
 ## Completion Criteria
 
 A run is complete only when all are true:
 
 - One concern has a clear before and after state.
-- [plans/PROJECT.md](../../../plans/PROJECT.md) and [plans/concerns.md](../../../plans/concerns.md) are consistent.
+- Decisions, To Plan, and Concerns sections in [plans/plan.md](../../../plans/plan.md) are consistent.
 - Any new risk created by the resolution is captured.
 - The output explicitly lists residual uncertainty and next validation step.

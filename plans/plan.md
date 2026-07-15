@@ -3,9 +3,11 @@
 ## Description
 
 Kestrel is a multi-tenant platform where each tenant runs on a dedicated k3s cluster hosted on one or more tenant-dedicated virtual machines.
-The control plane runs a management container that exposes the REST Administration API and a scheduler pod that manages lifecycle transitions for serverless workload pods.
-The data plane executes tenant workloads on base workload pods inside the owning tenant cluster.
-Dragonfly stores lifecycle source-of-truth state for serverless pods, including availability, claim/provision state, and shutdown transitions.
+The `Control Plane` pod runs the `Scheduler Routine` to manage lifecycle transitions for `Workload Pods` and handles in-cluster control-plane operations.
+The `Router` pod handles inbound workload and `Admin API` requests and routes workload traffic to eligible `Workload Pods`.
+The `Orchestrator` pod is responsible for VM provisioning, tenant creation, and tenant-cluster bootstrap. `Orchestrator` is out of scope for the current phase and must be planned before official release.
+The `Control Plane` pod must not provision VMs or bootstrap tenant clusters.
+Dragonfly stores lifecycle source-of-truth state for `Workload Pods`, including availability, claim/provision state, and shutdown transitions.
 
 ---
 
@@ -46,19 +48,19 @@ Dragonfly stores lifecycle source-of-truth state for serverless pods, including 
 
 **Decision:**
 
-- Dragonfly is the authoritative lifecycle store for serverless pod state.
+- Dragonfly is the authoritative lifecycle store for `Workload Pods` lifecycle state.
 - Dragonfly tracks pod availability, claiming/provisioning transitions, endpoint binding, and stale/shutdown transitions.
-- Router and scheduler lifecycle actions must use the shared Dragonfly contract for legal state transitions.
-- Dragonfly state is ephemeral and may be lost during control-plane restarts; after state loss, existing workload pods are treated as orphaned and are terminated instead of reused.
-- Recovery after Dragonfly state loss is reprovision-first: scheduler rebuilds warm/hot capacity from desired endpoint state and current orphaned pods are not reattached.
+- `Router` and `Scheduler Routine` lifecycle actions must use the shared Dragonfly contract for legal state transitions.
+- Dragonfly state is ephemeral and may be lost during control-plane restarts; after state loss, existing `Workload Pods` are treated as orphaned and are terminated instead of reused.
+- Recovery after Dragonfly state loss is reprovision-first: `Scheduler Routine` rebuilds warm/hot capacity from desired endpoint state and current orphaned pods are not reattached.
 
 **Ownership Boundaries:**
 
-- Router reads Dragonfly HOT eligibility and can initiate bounded claim-and-provision attempts when HOT capacity is unavailable.
-- Scheduler also initiates claim-and-provision transitions for warm-pool reconciliation and deployment-triggered capacity deficits.
-- Router and scheduler both use the shared Dragonfly lifecycle transaction contract for claim/provision/hot transitions.
-- Scheduler owns background reconciliation, stale/shutdown transitions, and orphan-sweep behavior.
-- Control plane configures desired warm/hot policy targets and transition limits but does not mutate per-request Dragonfly lifecycle state.
+- `Router` reads Dragonfly HOT eligibility and can initiate bounded claim-and-provision attempts when HOT capacity is unavailable.
+- `Scheduler Routine` also initiates claim-and-provision transitions for warm-pool reconciliation and deployment-triggered capacity deficits.
+- `Router` and `Scheduler Routine` both use the shared Dragonfly lifecycle transaction contract for claim/provision/hot transitions.
+- `Scheduler Routine` owns background reconciliation, stale/shutdown transitions, and orphan-sweep behavior.
+- `Control Plane` pod configures desired warm/hot policy targets and transition limits but does not mutate per-request Dragonfly lifecycle state.
 - Kubernetes labels (`lifecycle-state`, `api-endpoint`) are projections of Dragonfly lifecycle state and must converge to Dragonfly after reconciliation.
 
 **Timing Defaults:**
@@ -80,75 +82,77 @@ Dragonfly stores lifecycle source-of-truth state for serverless pods, including 
 
 - An orphaned pod is a pod with Kestrel lifecycle labels but no authoritative Dragonfly pod record.
 - A pod under stale-drain tracking is not considered orphaned because it still has an authoritative Dragonfly lifecycle record.
-- On orphan detection during the orphan sweep, scheduler transitions the pod to `shutdown` (terminate and garbage collect).
-- On stale-drain grace expiry, scheduler transitions the pod to `shutdown` (hard termination after drain cap).
-- On claim-timeout expiry, scheduler transitions the pod from `claiming` to `stale`.
+- On orphan detection during the orphan sweep, `Scheduler Routine` transitions the pod to `shutdown` (terminate and garbage collect).
+- On stale-drain grace expiry, `Scheduler Routine` transitions the pod to `shutdown` (hard termination after drain cap).
+- On claim-timeout expiry, `Scheduler Routine` transitions the pod from `claiming` to `stale`.
 
 **Nil-Claim Contract (Decision):**
 
 - A nil-claim occurs when the Dragonfly warm-claim move returns no pod from `warm:available`.
-- Router owns request-path nil-claim retries using exponential backoff with jitter (50ms initial interval) and continues retrying until the active request timeout budget is exhausted.
-- Router is the replenishment-signal owner for request-path nil-claim outcomes and emits the warm-pool replenishment signal when nil-claim outcomes are sustained.
-- Scheduler consumes replenishment signals and executes warm-pool recovery actions.
-- When the request timeout budget is exhausted before a ready event arrives, router returns 503 for that request.
+- `Router` owns request-path nil-claim retries using exponential backoff with jitter (50ms initial interval) and continues retrying until the active request timeout budget is exhausted.
+- `Router` is the replenishment-signal owner for request-path nil-claim outcomes and emits the warm-pool replenishment signal when nil-claim outcomes are sustained.
+- `Scheduler Routine` consumes replenishment signals and executes warm-pool recovery actions.
+- When the request timeout budget is exhausted before a ready event arrives, `Router` returns 503 for that request.
 
 **Dragonfly Availability Failure Handling (Decision):**
 
-- Router and scheduler must treat Dragonfly availability as a hard dependency for lifecycle-backed event processing.
-- When Dragonfly is unavailable, router must not continue request-path lifecycle processing beyond bounded Dragonfly read retries.
+- `Router` and `Scheduler Routine` must treat Dragonfly availability as a hard dependency for lifecycle-backed event processing.
+- When Dragonfly is unavailable, `Router` must not continue request-path lifecycle processing beyond bounded Dragonfly read retries.
 - Dragonfly operations use exponential backoff with 50ms initial delay and jitter computed as `Math.random() * backoff` on each retry attempt.
 - Dragonfly get/read calls use up to 3 retry attempts per operation before failing the operation.
 - Dragonfly write/mutation calls use up to 3 retry attempts per operation before failing the operation.
-- If Dragonfly remains unavailable after retry exhaustion for a request-path operation, router returns 503 Service Unavailable for that request.
-- Scheduler must pause Dragonfly-dependent reconciliation transitions while Dragonfly is unavailable and resume on recovery.
+- If Dragonfly remains unavailable after retry exhaustion for a request-path operation, `Router` returns 503 Service Unavailable for that request.
+- `Scheduler Routine` must pause Dragonfly-dependent reconciliation transitions while Dragonfly is unavailable and resume on recovery.
 
 **Dragonfly Key And Payload Contract (Decision):**
 
-- Router readiness wait key is `hot:{deployment-id}:{endpoint}`.
+- `Router` readiness wait key is `hot:{deployment-id}:{endpoint}`.
 - Shared warm-claim keys remain `warm:available` and `warm:claiming`.
 - Each hot key stores a Redis list of `podId` values.
-- Router selects HOT pods with atomic round-robin rotation using `LMOVE hot:{deployment-id}:{endpoint} hot:{deployment-id}:{endpoint} LEFT RIGHT`.
+- `Router` selects HOT pods with atomic round-robin rotation using `LMOVE hot:{deployment-id}:{endpoint} hot:{deployment-id}:{endpoint} LEFT RIGHT`.
 - Per-pod metadata is stored at `pod:{deployment-id}:{pod-id}`.
 - Records moved through `warm:available` and `warm:claiming` use JSON payloads with keys: `deploymentId`, `podServiceName`, `namespace`, `podHostName`, `api-endpoint`.
 - `pod:{deployment-id}:{pod-id}` stores the same JSON payload shape plus `state` (`warm`, `claiming`, `hot`, `stale`, `shutdown`).
 - `podHostName` is derived as `{podServiceName}.{namespace}.svc.cluster.local`.
-- Router may dispatch directly from readiness payload data, but HOT-list selection by `podId` must validate `pod:{deployment-id}:{pod-id}` state before forwarding.
+- `Router` may dispatch directly from readiness payload data, but HOT-list selection by `podId` must validate `pod:{deployment-id}:{pod-id}` state before forwarding.
 - Pods must be removed from `hot:{deployment-id}:{endpoint}` when they transition to `stale` or `shutdown`.
-- Router may evict selected pod IDs that resolve to non-routable state and retry within the active request timeout budget.
-- Scheduler cleanup loop must remove Dragonfly pod entries that no longer have a corresponding Kubernetes pod.
+- `Router` may evict selected pod IDs that resolve to non-routable state and retry within the active request timeout budget.
+- `Scheduler Routine` cleanup loop must remove Dragonfly pod entries that no longer have a corresponding Kubernetes pod.
 - Pod lifecycle keys are reconciliation-managed and must not use TTL-based forced orphaning as a normal cleanup mechanism.
 
 **Request Cancellation Contract (Decision):**
 
-- Router request context is authoritative for request-scoped listeners and request-scoped retry/provision wait loops.
-- On client disconnect, request-timeout-budget exhaustion, or any terminal request-path outcome where the endpoint cannot be fulfilled for that request, router must unregister all request-scoped listeners for that request and stop request-scoped work immediately.
-- If the request currently has an open upstream connection to a worker pod, router must terminate that upstream connection as part of cancellation cleanup.
-- Pod provision work that was already accepted by scheduler may continue after request cancellation; completed pods transition to `hot` normally and are eligible for subsequent requests.
+- `Router` request context is authoritative for request-scoped listeners and request-scoped retry/provision wait loops.
+- On client disconnect, request-timeout-budget exhaustion, or any terminal request-path outcome where the endpoint cannot be fulfilled for that request, `Router` must unregister all request-scoped listeners for that request and stop request-scoped work immediately.
+- If the request currently has an open upstream connection to a worker pod, `Router` must terminate that upstream connection as part of cancellation cleanup.
+- Pod provision work that was already accepted by `Scheduler Routine` may continue after request cancellation; completed pods transition to `hot` normally and are eligible for subsequent requests.
 - Request cancellation must not roll back or bind completed provision results to the canceled request.
 
 ### Control Plane Ownership
 
 **Decision:**
 
-- Control plane provisions tenant VM infrastructure.
-- Control plane bootstraps and registers tenant k3s clusters.
-- Management container exposes REST API surfaces for tenant, endpoint, and deployment operations.
-- Scheduler pod executes pod lifecycle orchestration, warm pool maintenance, and deployment-triggered provisioning actions.
-- Control plane stores tenant metadata, endpoint definitions, artifact bindings, desired capacity settings, and lifecycle policy configuration.
+- `Orchestrator` pod provisions tenant VM infrastructure.
+- `Orchestrator` pod bootstraps and registers tenant k3s clusters.
+- `Control Plane` pod exposes `Admin API` surfaces for tenant, endpoint, and deployment operations.
+- `Scheduler Routine` executes pod lifecycle orchestration, warm pool maintenance, and deployment-triggered provisioning actions.
+- `Control Plane` pod stores tenant metadata, endpoint definitions, artifact bindings, desired capacity settings, and lifecycle policy configuration.
+- `Control Plane` pod must not provision VMs or bootstrap tenant clusters.
 
 **Responsibility Boundaries:**
 
-- Control plane: VM provisioning, cluster bootstrap, lifecycle state transitions, warm pool maintenance, API gateway.
+- `Orchestrator` pod: VM provisioning, cluster bootstrap, and tenant-cluster migration orchestration.
+- `Control Plane` pod: lifecycle state transitions, warm pool maintenance, `Admin API` gateway, and metadata ownership.
 - Tenant cluster: pod execution, request routing, workload isolation.
-- Scheduler pod: Dragonfly state transitions, claim/provision orchestration, lifecycle callbacks.
+- `Scheduler Routine`: Dragonfly state transitions, claim/provision orchestration, lifecycle callbacks.
 - Request timeout default is 30 seconds and may be overridden by tenant and endpoint configuration within API-enforced bounds.
-- Scheduler pod owns claim/deploy/stale/shutdown transition ordering, minimum HOT target enforcement, and orphan-claiming reconciliation cadence.
+- `Scheduler Routine` owns claim/deploy/stale/shutdown transition ordering, minimum HOT target enforcement, and orphan-claiming reconciliation cadence.
 
-### Administration API Scope
+### Admin API Scope
 
 **Decision:**
 
-- Management container REST API is the authoritative management surface.
+- `Control Plane` `Admin API` is the authoritative management surface.
 - Tenant APIs manage tenant creation, topology profile, VM count, and deletion workflow.
 - Endpoint APIs manage endpoint lifecycle, artifact binding, runtime settings, and scaling limits.
 - Deployment APIs manage deployment creation, status, and deployment-scoped metadata used by request routing.
@@ -167,7 +171,7 @@ Dragonfly stores lifecycle source-of-truth state for serverless pods, including 
 
 **Decision:**
 
-- Base workload pods are created as deploy targets where endpoint code is provisioned and executed.
+- `Workload Pods` are created as deploy targets where endpoint code is provisioned and executed.
 - Pod lifecycle uses shared warm, claiming, hot, and stale states.
 - Endpoint updates create new immutable deployments; existing deployments remain routable until callers stop targeting them.
 - Endpoint scale is pod-count based and cluster-local.
@@ -176,20 +180,20 @@ Dragonfly stores lifecycle source-of-truth state for serverless pods, including 
 
 - New deployments are independently routable through `KESTREL-DEPLOY: {deployment-id}` selection.
 - New pods transition claiming -> hot during readiness checks and become eligible for immediate requests once deployment creation succeeds.
-- Scheduler reconciles warm/hot capacity in the background while router continues request-path claim-and-provision on demand.
+- `Scheduler Routine` reconciles warm/hot capacity in the background while `Router` continues request-path claim-and-provision on demand.
 
 ### Pod Specification and Labeling
 
 **Decision:**
 
-- All tenant serverless pods must have the following labels:
+- All tenant `Workload Pods` must have the following labels:
   - `lifecycle-state`: pod current state (values: `warm`, `claiming`, `hot`, `stale`, `shutdown`)
   - `api-endpoint`: endpoint identifier (added only after provisioning completes and pod transitions to `hot`)
   - Custom labels: tenant-supplied labels specified at deployment time to support routing, observability, and workload identification
 
 **Pod Label Semantics:**
 
-- `lifecycle-state` label is managed by the scheduler and reflects the authoritative Dragonfly state.
+- `lifecycle-state` label is managed by the `Scheduler Routine` and reflects the authoritative Dragonfly state.
 - `api-endpoint` label is set by the provisioning logic during endpoint binding and cleared during stale transition.
 - Custom labels are applied during pod creation from the endpoint deployment configuration and remain stable across pod lifetime.
 - Labels enable pod filtering for observability queries, traffic routing decisions, and lifecycle event correlation.
@@ -197,7 +201,7 @@ Dragonfly stores lifecycle source-of-truth state for serverless pods, including 
 
 **Responsibility Boundaries:**
 
-- Scheduler pod: manages `lifecycle-state` label transitions to match Dragonfly state changes.
+- `Scheduler Routine`: manages `lifecycle-state` label transitions to match Dragonfly state changes.
 - Provisioning logic: sets `api-endpoint` label when pod transitions to `hot`.
 - Deployment API: receives and applies custom labels from tenant deployment requests.
 
@@ -225,24 +229,24 @@ Dragonfly stores lifecycle source-of-truth state for serverless pods, including 
 
 - Global ingress resolves incoming request path to tenant and endpoint.
 - Requests are forwarded to the target tenant cluster ingress/service and resolved to eligible hot pods.
-- Requests must include `KESTREL-DEPLOY: {deployment-id}` so router selects deployment-scoped lifecycle keys.
+- Requests must include `KESTREL-DEPLOY: {deployment-id}` so `Router` selects deployment-scoped lifecycle keys.
 - Traffic policy and retries are enforced at ingress and service layers.
 - Default request timeout is 30 seconds for all endpoints unless overridden by tenant or deploy configuration.
 - Unreachable tenant clusters return 503 Service Unavailable to the global ingress.
 
 **Fallback Behavior:**
 
-- When no hot pod is available for an endpoint, router invokes claim-and-provision through the shared Dragonfly transaction contract.
-- Claim/provision is event-driven: router requests wait on `hot:{deployment-id}:{endpoint}` readiness records emitted after successful provision-to-HOT transition.
-- `hot:{deployment-id}:{endpoint}` readiness records include pod routing metadata so router can dispatch without a follow-up HOT lookup.
+- When no hot pod is available for an endpoint, `Router` invokes claim-and-provision through the shared Dragonfly transaction contract.
+- Claim/provision is event-driven: `Router` requests wait on `hot:{deployment-id}:{endpoint}` readiness records emitted after successful provision-to-HOT transition.
+- `hot:{deployment-id}:{endpoint}` readiness records include pod routing metadata so `Router` can dispatch without a follow-up HOT lookup.
 - HOT routing uses round-robin selection over `hot:{deployment-id}:{endpoint}` pod IDs and validates selected pod state through `pod:{deployment-id}:{pod-id}` before forwarding.
-- Router request timeout starts when request ingress is accepted, not when claim/provision starts.
-- Router timeout uses tenant/endpoint API timeout policy from settings (`settings > api settings`) and returns timeout failure when the budget is exhausted.
-- Claim step uses atomic `LMOVE warm:available warm:claiming LEFT RIGHT` semantics; nil claim results follow router retry/backoff policy.
-- Router retry policy is budget-bound (no fixed attempt cap): 50ms initial backoff, exponential growth, jitter, and stop at timeout-budget exhaustion.
+- `Router` request timeout starts when request ingress is accepted, not when claim/provision starts.
+- `Router` timeout uses tenant/endpoint API timeout policy from settings (`settings > api settings`) and returns timeout failure when the budget is exhausted.
+- Claim step uses atomic `LMOVE warm:available warm:claiming LEFT RIGHT` semantics; nil claim results follow `Router` retry/backoff policy.
+- `Router` retry policy is budget-bound (no fixed attempt cap): 50ms initial backoff, exponential growth, jitter, and stop at timeout-budget exhaustion.
 - Dragonfly get/read and write/mutation operations in request-path handling are capped at 3 attempts with exponential backoff (50ms initial) and jitter `Math.random() * backoff`; on persistent Dragonfly unavailability, request handling fails with 503 Service Unavailable.
 - On timeout-budget exhaustion or terminal deploy failure, ingress returns 503 Service Unavailable.
-- On any terminal request-path outcome where the endpoint cannot be fulfilled for that request (including client disconnect, timeout, terminal deploy failure, or exhausted routing eligibility), router unregisters request listeners, cancels request-scoped work, and terminates any open upstream worker-pod connection; only already-accepted pod provision work may continue for future requests.
+- On any terminal request-path outcome where the endpoint cannot be fulfilled for that request (including client disconnect, timeout, terminal deploy failure, or exhausted routing eligibility), `Router` unregisters request listeners, cancels request-scoped work, and terminates any open upstream worker-pod connection; only already-accepted pod provision work may continue for future requests.
 - Warm-pool replenishment signal is emitted on sustained nil-claim outcomes.
 - Circuit breaker settings prevent cascading failures.
 
@@ -285,8 +289,8 @@ Dragonfly stores lifecycle source-of-truth state for serverless pods, including 
 - Kestrel does not perform rollback to prior deployments; each deploy operation creates a new deployment ID and callers choose which deployment ID to target.
 - Primary deploy failure threshold is timeout exhaustion; deploy attempts also fail when critical dependencies are unavailable (for example code persistence or settings-database access).
 - On deploy failure, partially created resources for that deploy attempt must be cleaned up before returning failure.
-- Management API owns deployment orchestration, including request validation, payload assembly, persistence, and scheduler handoff.
-- Scheduler does not orchestrate deployment creation and instead reconciles pod provisioning needs after deployment state changes are recorded.
+- `Control Plane` `Admin API` owns deployment orchestration, including request validation, payload assembly, persistence, and `Scheduler Routine` handoff.
+- `Scheduler Routine` does not orchestrate deployment creation and instead reconciles pod provisioning needs after deployment state changes are recorded.
 
 ---
 
@@ -297,7 +301,7 @@ Dragonfly stores lifecycle source-of-truth state for serverless pods, including 
 **Decision:**
 
 - Secret values are encrypted at rest in control-plane storage.
-- Secret writes and updates are managed through Administration API surfaces.
+- Secret writes and updates are managed through `Admin API` surfaces.
 - Secret material is injected only into workloads running in the owning tenant cluster.
 
 **Encryption & Lifecycle:**
@@ -308,7 +312,7 @@ Dragonfly stores lifecycle source-of-truth state for serverless pods, including 
 
 ### To Plan: Security Contract
 
-- Define workload identity model between control plane and tenant clusters.
+- Define workload identity model between `Control Plane` pod and tenant clusters.
 - Define network policies for ingress, egress, and metadata-service protection.
 - Define key management and rotation policy for encrypted secret material.
 
@@ -320,7 +324,7 @@ Dragonfly stores lifecycle source-of-truth state for serverless pods, including 
 
 **Decision:**
 
-- Control plane records tenant-level and endpoint-level operational events.
+- `Control Plane` pod records tenant-level and endpoint-level operational events.
 - Metrics include request volume, latency, error rates, deployment duration, and resource utilization.
 - Usage reporting windows are deterministic and timestamp-bounded.
 
@@ -334,7 +338,7 @@ Dragonfly stores lifecycle source-of-truth state for serverless pods, including 
 
 **Decision:**
 
-- All serverless pod logs are collected from workload pods running in tenant clusters.
+- All `Workload Pods` logs are collected from `Workload Pods` running in tenant clusters.
 - Log collector agent runs as a DaemonSet on each tenant cluster node to scrape pod stdout/stderr from the container runtime.
 - Logs are aggregated and buffered locally on the tenant cluster before being pushed to Victoria Metrics (push-based model).
 - Push-based architecture minimizes Victoria Metrics configuration overhead and eliminates per-tenant pull configuration.
@@ -353,9 +357,9 @@ Dragonfly stores lifecycle source-of-truth state for serverless pods, including 
 
 **Responsibility Boundaries:**
 
-- Control plane: provisions vlagent DaemonSet and aggregator pod configurations, manages Victoria Logs endpoint credentials and URLs, monitors aggregator health metrics.
+- `Control Plane` pod: provisions vlagent DaemonSet and aggregator pod configurations, manages Victoria Logs endpoint credentials and URLs, monitors aggregator health metrics.
 - Tenant cluster: runs DaemonSet vlagent on each node and central aggregator pod; exposes aggregator `/metrics` endpoint for monitoring.
-- Scheduler pod: coordinates vlagent DaemonSet lifecycle with node availability and pod lifecycle events.
+- `Scheduler Routine`: coordinates vlagent DaemonSet lifecycle with node availability and pod lifecycle events.
 
 ### Lifecycle Event Collection
 
@@ -363,7 +367,7 @@ Dragonfly stores lifecycle source-of-truth state for serverless pods, including 
 
 - Lifecycle events are collected in row-based SQL with one row per transition event.
 - Required event types: endpoint execution start, endpoint execution end, pod HOT start, pod stale.
-- Router and scheduler are lifecycle event writers for transitions they own.
+- `Router` and `Scheduler Routine` are lifecycle event writers for transitions they own.
 - Query windows use `[from, to)` semantics and filter by end timestamp for period attribution.
 - Cross-boundary transactions are attributed to the period containing the end timestamp.
 - Victoria Metrics sampling is a secondary audit/dispute signal and not an authoritative billing source.
@@ -401,7 +405,7 @@ Dragonfly stores lifecycle source-of-truth state for serverless pods, including 
 - Deployment replacement and endpoint fail-safe behavior are first-class operational controls.
 - No permanent state is stored as part of the Kubernetes cluster. All state including Dragonfly is considered ephemeral.
 - Tenant clusters need to be able to be migrated to new VMs in the event of a VM failure or upgrade.
-- The admin API plane should be able to orchestrate cluster migration without downtime.
+- The `Orchestrator` pod should be able to orchestrate cluster migration without downtime.
 
 **Failure Handling:**
 
@@ -414,7 +418,7 @@ Dragonfly stores lifecycle source-of-truth state for serverless pods, including 
 **Decision:**
 
 - Lifecycle reconciliation timing and Dragonfly recovery defaults are defined by the Dragonfly Lifecycle State Contract.
-- On Dragonfly state-loss recovery, scheduler enters orphan-sweep mode and terminates non-authoritative pods before restoring endpoint warm/hot targets.
+- On Dragonfly state-loss recovery, `Scheduler Routine` enters orphan-sweep mode and terminates non-authoritative pods before restoring endpoint warm/hot targets.
 - Single-node tenant topologies should expect temporary endpoint brownouts during orphan-sweep and cold reprovision after Dragonfly state loss.
 - HA tenant topologies still cycle orphaned pods during Dragonfly state-loss recovery, but availability impact should be limited when redundancy targets are satisfied.
 
@@ -452,7 +456,7 @@ Dragonfly stores lifecycle source-of-truth state for serverless pods, including 
 
 ### Critical Severity
 
-- **Lifecycle state transition correctness**: Scheduler and router contract skew can violate legal lifecycle transitions unless version compatibility rules are explicit. _Impact: silent traffic loss, corrupted pod state._
+- **Lifecycle state transition correctness**: `Scheduler Routine` and `Router` contract skew can violate legal lifecycle transitions unless version compatibility rules are explicit. _Impact: silent traffic loss, corrupted pod state._
 - **Dragonfly state divergence**: Repair loops can over-correct and terminate valid pods when reconciliation runs from stale Dragonfly reads. _Impact: production pod termination, cascading traffic loss._
 - **Tenant deletion safety**: Tenant deletion safety can fail if artifact retention, data ownership, and irreversible delete preconditions are not contractually enforced. _Impact: data loss, cross-tenant leakage._
 
@@ -462,7 +466,7 @@ Dragonfly stores lifecycle source-of-truth state for serverless pods, including 
 - **Control-plane blast radius**: Control-plane credential scope that is too broad can increase blast radius across tenant operations unless identity boundaries are narrowly enforced. _Impact: security breach affecting multiple tenants._
 - **Regional outage recovery**: Regional outages can cause prolonged tenant downtime unless cross-region backup and restore procedures are validated. _Impact: extended tenant unavailability._
 - **Multi-VM upgrade complexity**: Multi-VM tenant topologies can introduce quorum and upgrade complexity unless node lifecycle and upgrade ordering are formalized. _Impact: split-brain states, failed topology upgrades._
-- **HOT-list schema divergence**: Router and scheduler can misroute or fail eligibility checks if endpoint HOT-list naming, structure, and selection semantics diverge across implementations. _Impact: persistent request misdirection and sustained 5xx errors until schema alignment is restored._
+- **HOT-list schema divergence**: `Router` and `Scheduler Routine` can misroute or fail eligibility checks if endpoint HOT-list naming, structure, and selection semantics diverge across implementations. _Impact: persistent request misdirection and sustained 5xx errors until schema alignment is restored._
 - **Retry amplification on terminal deploy failures**: Repeated terminal deploy failures can trigger synchronized retry storms if failure-marker gating and timeout-budget-aware backoff/jitter policies are not enforced. _Impact: control-plane overload, warm-pool exhaustion, prolonged 503 windows._
 - **Dragonfly loss recovery churn (single-node sensitive)**: Dragonfly state loss forces orphan cycling and cold reprovision; brownout risk is highest for single-node tenant topologies, while HA topologies should retain partial availability if warm/hot redundancy targets are met. _Impact: elevated cold-start latency, burst 503 rates for single-node tenants, and control-plane saturation during recovery windows._
 

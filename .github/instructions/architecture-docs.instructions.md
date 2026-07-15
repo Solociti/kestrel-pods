@@ -27,6 +27,9 @@ Use this workflow for architecture-document edits in this repository.
 ## Writing Standards
 
 - Preserve existing domain terminology: warm, hot, stale, environments, deploy.
+- Use canonical runtime terminology: `Control Plane` pod, `Router` pod, `Orchestrator` pod, `Scheduler Routine`, `Admin API`, `Workload Pods`.
+- Keep pod names wrapped in backticks in architecture prose.
+- Keep ownership boundaries explicit: `Orchestrator` pod owns VM and tenant-cluster provisioning; `Control Plane` pod does not.
 - Avoid absolute claims unless they are verified and scoped.
 - Prefer explicit enforcement boundaries, failure modes, and trade-offs.
 - Keep edits minimal and traceable to one decision change at a time.
