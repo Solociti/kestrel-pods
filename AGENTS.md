@@ -18,9 +18,11 @@ Use the Project Critic custom agent when discussing architecture changes:
 ## Editing Rules For This Repo
 
 - Treat plans/plan.md as normative VM architecture policy.
-- Keep accepted architecture decisions and rationale in the Decisions section of plans/plan.md.
-- Keep unresolved risks, risky claims, and open questions in the Concerns section of plans/plan.md.
-- Keep implementation follow-up items in the To Plan section of plans/plan.md.
+- Structure: Base Architecture section (core tenant isolation, control plane, lifecycle state model) + feature-specific sections (Endpoint Runtime, Routing, Secrets, etc.) + To Plan subsections within features.
+- Keep accepted architecture decisions and rationale within each section (Base and feature sections).
+- Keep implementation follow-up items in the To Plan subsections within each feature section.
+- Keep unresolved risks, risky claims, and open questions in the Concerns section at the end, grouped by severity level (Critical, High, Medium, Low).
+- Each concern must include severity level, impact description, and enforcement guidance.
 - Prefer small, explicit edits that preserve existing terminology (warm, hot, stale, environments, deploy).
 - Do not invent build/test commands. None are defined in this repository yet.
 
@@ -28,10 +30,14 @@ Use the Project Critic custom agent when discussing architecture changes:
 
 When adding or changing architecture decisions:
 
-1. State the decision and enforcement boundary in the Decisions section of plans/plan.md.
-2. Add explicit failure modes or uncertainty to the Concerns section of plans/plan.md.
-3. If a concern is resolved, remove or rewrite only that concern and reflect the updated decision in plans/plan.md in the same edit.
-4. If the decision creates follow-up implementation work, capture that work in the To Plan section of plans/plan.md.
+1. State the decision within the appropriate Base Architecture or feature section of plans/plan.md.
+2. Add enforcement boundaries and responsibility delineations where applicable.
+3. If the decision defers work, add a To Plan subsection within that feature section.
+4. Add explicit failure modes or uncertainty to the Concerns section in plans/plan.md.
+5. Classify each concern with a severity level: Critical, High, Medium, or Low.
+6. Include impact description for each concern (blast radius, user-visible effect, recovery complexity).
+7. If a concern is resolved, remove or rewrite only that concern and reflect the updated decision within the feature section in the same edit.
+8. When resolving a concern, update both the feature section decision and the concern entry at the end of the file.
 
 ## Scope Note
 
