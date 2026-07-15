@@ -13,7 +13,7 @@ Do not duplicate decisions across files. Update the source of truth directly.
 Use the Project Critic custom agent when discussing architecture changes:
 
 - Agent definition: [.github/agents/project-critic.agent.md](.github/agents/project-critic.agent.md)
-- Purpose: bluntly challenge design claims, then update the Decisions and Concerns sections in plans/plan.md only when the user explicitly confirms a concern is resolved.
+- Purpose: bluntly challenge design claims, then update the relevant section’s **Decision:** block and the Concerns section in plans/plan.md only when the user explicitly confirms a concern is resolved.
 
 ## Editing Rules For This Repo
 
@@ -22,7 +22,7 @@ Use the Project Critic custom agent when discussing architecture changes:
 - Keep accepted architecture decisions and rationale within each section (Base and feature sections).
 - Keep implementation follow-up items in the To Plan subsections within each feature section.
 - Keep unresolved risks, risky claims, and open questions in the Concerns section at the end, grouped by severity level (Critical, High, Medium, Low).
-- Each concern must include severity level, impact description, and enforcement guidance.
+- Each concern must include severity level and impact description.
 - Prefer small, explicit edits that preserve existing terminology (warm, hot, stale, environments, deploy).
 - Do not invent build/test commands. None are defined in this repository yet.
 

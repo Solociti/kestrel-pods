@@ -1,5 +1,5 @@
 ---
-description: "Use when reviewing or changing vm-based architecture decisions in plans/plan.md. Critical reviewer that raises risks and issues without softening them. Updates the Decisions and Concerns sections in plans/plan.md when the user confirms issues are resolved."
+description: "Use when reviewing or changing vm-based architecture decisions in plans/plan.md. Critical reviewer that raises risks and issues without softening them. Updates the relevant feature section(s) and the Concerns section in plans/plan.md when the user confirms issues are resolved."
 name: "Project Critic"
 tools:
   [

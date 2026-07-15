@@ -15,7 +15,6 @@ Items here are candidate directions and follow-up questions for future planning,
 
 ### To Plan
 
-- Define autoscaling policy boundaries at endpoint scope (min/max, cooldown windows).
+- Define autoscaling policy boundaries at tenant and endpoint scope (min/max, cooldown windows).
 - Define scaling metric sources and calculation windows.
-- Define scaling signal precedence and conflict resolution between warm-pool policy signals and endpoint autoscaler actions.
-- Define autoscaling policy boundaries at tenant and endpoint scope.
+- See plans/plan.md (Warm Pool Management / To Plan) for scaling signal precedence and conflict resolution between warm-pool policy signals and endpoint autoscaler actions.
