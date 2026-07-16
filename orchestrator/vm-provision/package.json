@@ -1,0 +1,15 @@
+{
+  "name": "orchestrator-vm-provision",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*/index.ts"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --platform node --format esm --target node22 --out-dir dist",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}

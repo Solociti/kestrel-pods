@@ -1,0 +1,16 @@
+{
+  "name": "shared-src",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./utils/index.ts",
+    "./utils": "./utils/index.ts",
+    "./utils/*": "./utils/*/index.ts"
+  },
+  "scripts": {
+    "build": "tsup utils/index.ts --format esm --target node22 --out-dir dist",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}

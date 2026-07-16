@@ -1,0 +1,12 @@
+{
+  "name": "@kestrel/orchestrator-dashboard-server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch ./server.ts",
+    "build": "tsup --config tsup.config.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}

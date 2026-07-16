@@ -1,0 +1,9 @@
+packages:
+  - "orchestrator/dashboard/client"
+  - "orchestrator/dashboard/server"
+  - "orchestrator/vm-provision"
+  - "control-plane"
+  - "router"
+  - "shared-src"
+allowBuilds:
+  esbuild: true
