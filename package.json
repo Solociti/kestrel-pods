@@ -6,7 +6,12 @@
   "scripts": {
     "build": "pnpm -r run build",
     "test": "pnpm -r run test",
-    "typecheck": "pnpm -r run typecheck"
+    "typecheck": "pnpm -r run typecheck",
+    "docker:build:dashboard": "docker build --network=host -f orchestrator/dashboard/Dockerfile -t kestrel-dashboard .",
+    "docker:build:control-plane": "docker build --network=host -f control-plane/Dockerfile -t kestrel-control-plane .",
+    "docker:build:router": "docker build --network=host -f router/Dockerfile -t kestrel-router .",
+    "docker:build:vm-provision": "docker build --network=host -f orchestrator/vm-provision/Dockerfile -t kestrel-vm-provision .",
+    "docker:build": "pnpm run docker:build:dashboard && pnpm run docker:build:control-plane && pnpm run docker:build:router && pnpm run docker:build:vm-provision"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",
