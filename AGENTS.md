@@ -43,6 +43,10 @@ When adding or changing architecture decisions:
 8. When resolving a concern, update both the feature section decision and the concern entry at the end of the file.
 9. Keep ownership boundaries explicit: `Orchestrator` pod owns VM and tenant-cluster provisioning; `Control Plane` pod does not.
 
+## Package Imports
+
+All built in node packages must be imported from the `node:` namespace. For example, use `import fs from 'node:fs'` instead of `import fs from 'fs'`.
+
 ## Scope Note
 
 Current workspace contents are documentation plus custom agent config. Planning docs are under plans/. If code is introduced later, extend this file with concrete build/test/run commands and directory ownership boundaries.
