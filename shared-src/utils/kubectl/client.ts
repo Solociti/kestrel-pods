@@ -145,6 +145,7 @@ export class KubectlClient {
    * Includes resource requests, env vars, Kestrel labels, affinity policies,
    * and readiness probes for warm pool insertion.
    * Per Tenant Isolation Boundary: includes pod affinity and node selectors.
+   *
    * @internal
    */
   private buildPodManifest(
@@ -206,6 +207,7 @@ export class KubectlClient {
 
   /**
    * Convert possibly-undefined label map values to strict Kubernetes string labels.
+   *
    * @internal
    */
   private toStringLabels(
@@ -222,6 +224,7 @@ export class KubectlClient {
    * Build affinity spec for topology enforcement.
    * Per Tenant Isolation Boundary and Cluster Topology decisions.
    * Supports both standard (no anti-affinity) and HA (multi-node) profiles.
+   *
    * @internal
    */
   private buildAffinitySpec(
@@ -509,6 +512,7 @@ export class KubectlClient {
 
   /**
    * Build a kubectl label selector from query criteria.
+   *
    * @internal
    */
   private buildLabelSelector(criteria: PodQueryCriteria): string {
@@ -538,6 +542,7 @@ export class KubectlClient {
 
   /**
    * Parse Kubernetes pod JSON data into PodInfo.
+   *
    * @internal
    */
   private parsePodData(podData: k8s.V1Pod): PodInfo {
@@ -815,13 +820,12 @@ export class KubectlClient {
   /**
    * Watch pod readiness state changes.
    * Emits callback when pod transitions to Ready condition.
-   * Per Warm Pool Management: "Scheduler Routine inserts warm pods into Dragonfly warm availability
-   * from Kubernetes readiness events using atomic claim-safe operations."
+    * Uses Kubernetes readiness events for warm pool insertion.
    *
-   * @param podName - Pod name
-   * @param namespace - Kubernetes namespace
-   * @param onReady - Callback when pod reaches Ready state
-   * @param onError - Callback on watch error
+   * @param podName
+   * @param namespace
+   * @param onReady Callback when pod reaches Ready state
+   * @param onError Callback on watch error
    * @returns Function to cancel the watch
    */
   watchPodReadiness(
@@ -878,10 +882,10 @@ export class KubectlClient {
    * Useful for monitoring state changes across multiple pods.
    * Per Scheduler Routine reconciliation needs.
    *
-   * @param namespace - Kubernetes namespace
-   * @param deploymentId - Filter by deployment
-   * @param onEventType - Handle different event types (Added, Modified, Deleted)
-   * @param onError - Callback on watch error
+    * @param namespace
+    * @param deploymentId
+    * @param onEventType Handles ADDED, MODIFIED, and DELETED events.
+    * @param onError Callback on watch error
    * @returns Function to cancel the watch
    */
   watchPodEvents(
@@ -949,8 +953,8 @@ export class KubectlClient {
    * **Caller Responsibility**: Integrate this with Dragonfly checks.
    * This method only identifies pods with lifecycle labels; caller must verify against Dragonfly.
    *
-   * @param namespace - Kubernetes namespace
-   * @param deploymentId - Filter by deployment
+  * @param namespace
+  * @param deploymentId
    * @returns Array of potentially orphaned pods
    */
   async detectOrphanPods(
@@ -979,9 +983,9 @@ export class KubectlClient {
    * Per Timer And Orphan Resolution: "On orphan detection during the orphan sweep,
    * Scheduler Routine transitions the pod to shutdown (terminate and garbage collect)."
    *
-   * @param podName - Pod name
-   * @param namespace - Kubernetes namespace
-   * @param dragonflyShouldExist - Verify that pod should exist in Dragonfly
+    * @param podName
+    * @param namespace
+    * @param dragonflyShouldExist Whether the pod should exist in Dragonfly.
    * @returns true if pod appears orphaned
    */
   async isOrphanPod(

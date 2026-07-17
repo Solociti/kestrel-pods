@@ -1,8 +1,7 @@
 ---
 description: "Use when proposing architecture changes or editing plans/plan.md. Enforces section-level decision/risk/task separation in the vm-based architecture plan."
 name: "Architecture Docs Workflow"
-applyTo:
-  - "plans/plan.md"
+applyTo: "plans/plan.md"
 ---
 # Architecture Documentation Workflow
 
@@ -37,5 +36,6 @@ Use this workflow for architecture-document edits in this repository.
 ## Guardrails
 
 - Do not invent build/test/run commands in these docs.
+- Do not require edits to [plans/plan.md](../../plans/plan.md) for code-only changes unless architecture policy or ownership boundaries change.
 - Do not convert unresolved architecture uncertainty into To Plan entries prematurely.
 - If evidence is missing, state what is unknown rather than implying certainty.
