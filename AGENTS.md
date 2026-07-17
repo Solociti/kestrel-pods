@@ -84,6 +84,11 @@ When adding or changing architecture decisions:
 
 All built in node packages must be imported from the `node:` namespace. For example, use `import fs from 'node:fs'` instead of `import fs from 'fs'`.
 
+## Naming Conventions
+
+- Use camelCase for variable and constant identifiers.
+- Do not introduce SCREAMING_SNAKE_CASE identifiers for new code.
+
 ## JSDoc Requirements
 
 - Use a short description block at the top.
