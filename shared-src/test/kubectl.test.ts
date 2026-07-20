@@ -1,10 +1,226 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   KubectlClient,
   createBackoffStrategy,
   withRetry,
   type PodInfo,
 } from "../utils/kubectl";
+
+vi.mock("@kubernetes/client-node", () => {
+  const makePod = ({
+    name,
+    namespace,
+    deploymentId = "deploy-123",
+    lifecycleState = "warm",
+    endpoint,
+    phase = "Running",
+    ready = true,
+  }: {
+    name: string;
+    namespace: string;
+    deploymentId?: string;
+    lifecycleState?: "warm" | "claiming" | "hot" | "stale" | "shutdown";
+    endpoint?: string;
+    phase?: string;
+    ready?: boolean;
+  }) => ({
+    metadata: {
+      name,
+      namespace,
+      uid: `${name}-uid`,
+      labels: {
+        deployment: deploymentId,
+        "lifecycle-state": lifecycleState,
+        ...(endpoint ? { "api-endpoint": endpoint } : {}),
+      },
+      creationTimestamp: "2024-01-01T00:00:00.000Z",
+    },
+    status: {
+      phase,
+      hostIP: "10.0.0.1",
+      podIP: "10.0.0.2",
+      conditions: [{ type: "Ready", status: ready ? "True" : "False" }],
+    },
+  });
+
+  const listPodsForSelector = (namespace: string, labelSelector?: string) => {
+    if (namespace === "non-existent-namespace") {
+      throw new Error("namespace not found");
+    }
+
+    const selector = labelSelector || "";
+    const deploymentId =
+      selector.match(/deployment=([^,]+)/)?.[1] ?? "deploy-123";
+    const endpoint = selector.match(/api-endpoint=([^,]+)/)?.[1];
+
+    if (selector.includes("lifecycle-state in (hot)")) {
+      return {
+        items: [
+          makePod({
+            name: "hot-pod",
+            namespace,
+            deploymentId,
+            lifecycleState: "hot",
+            endpoint: endpoint ?? "endpoint-1",
+          }),
+        ],
+      };
+    }
+
+    if (selector.includes("lifecycle-state in (claiming)")) {
+      return {
+        items: [
+          makePod({
+            name: "claiming-pod",
+            namespace,
+            deploymentId,
+            lifecycleState: "claiming",
+          }),
+        ],
+      };
+    }
+
+    if (selector.includes("lifecycle-state in (stale)")) {
+      return {
+        items: [
+          makePod({
+            name: "stale-pod",
+            namespace,
+            deploymentId,
+            lifecycleState: "stale",
+          }),
+        ],
+      };
+    }
+
+    if (selector.includes("lifecycle-state in (warm)")) {
+      return {
+        items: [
+          makePod({
+            name: "warm-pod",
+            namespace,
+            deploymentId,
+            lifecycleState: "warm",
+          }),
+        ],
+      };
+    }
+
+    return {
+      items: [
+        makePod({
+          name: "test-pod",
+          namespace,
+          deploymentId,
+          lifecycleState: "warm",
+          endpoint: endpoint ?? "endpoint-1",
+        }),
+      ],
+    };
+  };
+
+  class CoreV1Api {
+    createNamespacedPod = vi.fn(
+      async ({
+        body,
+      }: {
+        body: {
+          metadata?: { name?: string };
+          spec?: { containers?: Array<{ image?: string }> };
+        };
+      }) => {
+        const podName = body?.metadata?.name;
+        const containerImage = body?.spec?.containers?.[0]?.image;
+
+        if (!podName || !containerImage) {
+          throw new Error("invalid pod spec");
+        }
+
+        return {};
+      },
+    );
+
+    deleteNamespacedPod = vi.fn(async () => ({}));
+
+    readNamespacedPod = vi.fn(
+      async ({ name, namespace }: { name: string; namespace: string }) => {
+        if (name === "non-existent-pod") {
+          throw new Error("pod not found");
+        }
+
+        return makePod({
+          name,
+          namespace,
+          deploymentId: "deploy-123",
+          lifecycleState: "warm",
+          endpoint: "endpoint-1",
+        });
+      },
+    );
+
+    patchNamespacedPod = vi.fn(async () => ({}));
+
+    listNamespacedPod = vi.fn(
+      async ({
+        namespace,
+        labelSelector,
+      }: {
+        namespace: string;
+        labelSelector?: string;
+      }) => listPodsForSelector(namespace, labelSelector),
+    );
+
+    listPodForAllNamespaces = vi.fn(
+      async ({ labelSelector }: { labelSelector?: string }) =>
+        listPodsForSelector("default", labelSelector),
+    );
+
+    readNamespacedPodLog = vi.fn(async () => "pod logs");
+
+    createNamespacedPodEviction = vi.fn(async () => ({}));
+  }
+
+  class KubeConfig {
+    loadFromFile() {}
+
+    loadFromDefault() {}
+
+    makeApiClient() {
+      return new CoreV1Api();
+    }
+  }
+
+  class Watch {
+    watch = vi.fn(async () => ({
+      abort() {},
+    }));
+  }
+
+  class Metrics {
+    getPodMetrics = vi.fn(async () => ({
+      items: [
+        {
+          metadata: { name: "test-pod" },
+          containers: [
+            {
+              usage: {
+                cpu: "100m",
+                memory: "128Mi",
+              },
+            },
+          ],
+        },
+      ],
+    }));
+  }
+
+  return {
+    KubeConfig,
+    CoreV1Api,
+    Watch,
+    Metrics,
+  };
+});
 
 describe("KubectlClient", () => {
   let client: KubectlClient;
@@ -15,17 +231,14 @@ describe("KubectlClient", () => {
 
   describe("Backoff Strategy", () => {
     it("should create exponential backoff with jitter", () => {
+      const randomSpy = vi.spyOn(Math, "random").mockReturnValue(1);
       const backoff = createBackoffStrategy(50);
 
       const delays = Array.from({ length: 5 }, (_, i) => backoff(i));
 
-      // Each delay should be less than or equal to 50 * 2^attempt
-      delays.forEach((delay, i) => {
-        expect(delay).toBeLessThanOrEqual(50 * Math.pow(2, i));
-      });
+      expect(delays).toEqual([50, 100, 200, 400, 800]);
 
-      // Delays should generally increase (with some randomness)
-      expect(delays[0]).toBeLessThan(delays[delays.length - 1] * 2);
+      randomSpy.mockRestore();
     });
   });
 
